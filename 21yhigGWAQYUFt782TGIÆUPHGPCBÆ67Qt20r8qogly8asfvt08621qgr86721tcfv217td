@@ -1893,14 +1893,33 @@ local function setupChar(char)
     CharRefs.hrp = hrp
     local old = head:FindFirstChild("SpeedBillboard")
     if old then old:Destroy() end
+    
+    -- Made the BillboardGui taller to fit both labels
     local bb = Instance.new("BillboardGui")
     bb.Name = "SpeedBillboard"
-    bb.Size = UDim2.new(0, 140, 0, 25)
-    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.Size = UDim2.new(0, 140, 0, 45)
+    bb.StudsOffset = Vector3.new(0, 3.2, 0)
     bb.AlwaysOnTop = true
     bb.Parent = head
+
+    -- SLOWLY HUB title label (ABOVE Speed)
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "HubTitle"
+    titleLabel.Size = UDim2.new(1, 0, 0, 20)
+    titleLabel.Position = UDim2.new(0, 0, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "SLOWLY HUB"
+    titleLabel.TextColor3 = Color3.fromRGB(180, 0, 180)
+    titleLabel.Font = Enum.Font.GothamBlack
+    titleLabel.TextScaled = true
+    titleLabel.TextStrokeTransparency = 0
+    titleLabel.Parent = bb
+
+    -- Speed label (BELOW title)
     CharRefs.speedLabel = Instance.new("TextLabel")
-    CharRefs.speedLabel.Size = UDim2.new(1, 0, 1, 0)
+    CharRefs.speedLabel.Name = "SpeedText"
+    CharRefs.speedLabel.Size = UDim2.new(1, 0, 0, 22)
+    CharRefs.speedLabel.Position = UDim2.new(0, 0, 0, 22)
     CharRefs.speedLabel.BackgroundTransparency = 1
     CharRefs.speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     CharRefs.speedLabel.Font = Enum.Font.GothamBold
@@ -3083,6 +3102,117 @@ do
             guiKBtn.Text = prettyKeyName(newKey)
             scheduleAutoSave()
         end)
+    end)
+
+    -- UNLOAD SCRIPT BUTTON
+    local unloadRow = Instance.new("Frame")
+    unloadRow.Size = UDim2.new(1, 0, 0, 38)
+    unloadRow.BackgroundColor3 = Color3.fromRGB(40, 10, 10)
+    unloadRow.BackgroundTransparency = 0.5
+    unloadRow.BorderSizePixel = 0
+    unloadRow.LayoutOrder = 6
+    unloadRow.Parent = sg
+    guiCorner(unloadRow, 10)
+    guiStroke(unloadRow, Color3.fromRGB(150, 30, 30), 1)
+
+    local unloadBtn = Instance.new("TextButton", unloadRow)
+    unloadBtn.Size = UDim2.new(1, 0, 1, 0)
+    unloadBtn.BackgroundTransparency = 1
+    unloadBtn.Text = "Unload Script"
+    unloadBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+    unloadBtn.TextSize = 12
+    unloadBtn.Font = Enum.Font.GothamBold
+    unloadBtn.ZIndex = 2
+
+    unloadBtn.MouseEnter:Connect(function()
+        tw(unloadRow, {BackgroundTransparency = 0.2})
+        tw(unloadBtn, {TextColor3 = Color3.fromRGB(255, 120, 120)})
+    end)
+    unloadBtn.MouseLeave:Connect(function()
+        tw(unloadRow, {BackgroundTransparency = 0.5})
+        tw(unloadBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)})
+    end)
+
+    unloadBtn.MouseButton1Click:Connect(function()
+        -- 1. Stop all active mechanics
+        stopCircle()
+        stopAntiRagdoll()
+        stopMedusaCounter()
+        stopAutoSteal()
+        stopDoubleJumpTpLoop()
+        stopAnimToggle()
+        stopZombieMode()
+        stopStretchRes()
+        removeSky()
+        
+        -- 2. Restore speed and jump
+        if CharRefs.humanoid then
+            CharRefs.humanoid.JumpPower = JumpRefs.originalJumpPower or 50
+            CharRefs.humanoid.AutoRotate = true
+        end
+        if CharRefs.hrp then
+            CharRefs.hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+        
+        -- 3. Restore original lighting
+        pcall(function()
+            Lighting.Technology = OriginalLighting.Technology
+            Lighting.Brightness = OriginalLighting.Brightness
+            Lighting.ClockTime = OriginalLighting.ClockTime
+            Lighting.ExposureCompensation = OriginalLighting.ExposureCompensation
+            Lighting.Ambient = OriginalLighting.Ambient
+            Lighting.OutdoorAmbient = OriginalLighting.OutdoorAmbient
+            Lighting.ColorShift_Top = OriginalLighting.ColorShift_Top
+            Lighting.ColorShift_Bottom = OriginalLighting.ColorShift_Bottom
+            Lighting.FogEnd = OriginalLighting.FogEnd
+            Lighting.FogStart = OriginalLighting.FogStart
+            Lighting.GlobalShadows = OriginalLighting.GlobalShadows
+        end)
+
+        -- 4. Restore FOV
+        pcall(function() workspace.CurrentCamera.FieldOfView = 70 end)
+
+        -- 5. Restore FPS Cap
+        pcall(function() setfpscap(60) end)
+
+        -- 6. Destroy all GUIs created by the script
+        local guiNames = {"Slowly Hub", "SlowlyBypassGUI", "AutoStealBar", "SlowlyHubIntro"}
+        for _, name in ipairs(guiNames) do
+            local g = PlayerGui:FindFirstChild(name)
+            if g then g:Destroy() end
+        end
+        for _, sg in ipairs(FloatingBtnGuis) do
+            if sg and sg.Parent then sg:Destroy() end
+        end
+
+        -- 7. Destroy prediction sphere
+        if Cvar.predictionSphere then Cvar.predictionSphere:Destroy() end
+
+        -- 8. Remove BillboardGuis
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character then
+                local head = player.Character:FindFirstChild("Head")
+                if head then
+                    local sb = head:FindFirstChild("SpeedBillboard")
+                    if sb then sb:Destroy() end
+                    local esb = head:FindFirstChild("EnemySpeedBillboard")
+                    if esb then esb:Destroy() end
+                end
+            end
+        end
+
+        -- 9. Destroy the script instance to halt execution completely
+        local scriptObj = script
+        if not scriptObj:IsA("LocalScript") then
+            -- Fallback for executors that use ModuleScripts or plain threads
+            pcall(function()
+                local coreGui = game:GetService("CoreGui")
+                for _, v in pairs(getconnections(scriptObj.AncestryChanged)) do
+                    v:Disable()
+                end
+            end)
+        end
+        pcall(function() scriptObj:Destroy() end)
     end)
 end
 
